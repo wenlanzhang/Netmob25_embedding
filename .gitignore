@@ -1,0 +1,23 @@
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node.js dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build artifacts
+build/
+dist/
+*.env
+
+# IDE specific files
+.vscode/
+.idea/
+*.iml
+
+# Log files
+*.log
+logs/
