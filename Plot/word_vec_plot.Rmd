@@ -1,0 +1,249 @@
+```{r}
+# Load the packages
+library(sf)
+library(here)
+library(dplyr)
+library(scales)
+library(viridis)
+library(ggplot2)
+library(ggExtra)
+library(cowplot)
+library(ggpubr)
+library(paletteer)
+library(stringr)
+
+```
+
+
+```{r}
+# Load required libraries
+library(ggplot2)
+library(stringr)
+library(paletteer)
+
+DATA_DIR <- "/Users/wenlanzhang/Downloads/PhD_UCL/Data/Netmob2025"
+CODE_DIR <- "/Users/wenlanzhang/PycharmProjects/Netmob25_embedding/"
+```
+
+# Single
+```{r}
+file_path <- file.path(DATA_DIR, "/4plot/IRIS_place_time_day_tsne.csv")
+df_plot_word <- read.csv(file_path)
+
+# Define your color scale limits
+min_lat <- 48.6
+max_lat <- 49.0
+
+# Create the plot
+p <- ggplot(df_plot_word, aes(x = x, y = y, color = center_lat)) +
+  geom_point(size = 0.7, alpha = 0.8) +
+  scale_color_gradient(
+    name = "Latitude",
+    limits = c(min_lat, max_lat),
+    #  low = "#4575b4", high = "#d73027", 
+    low = "#263C7B", high = "#E9C62E",  
+    oob = scales::squish               # Handle out-of-bound values
+  ) +
+  labs(title = "t-SNE of Location Embeddings color by lat") +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "right",
+    panel.grid.major = element_line(size = 0.2),
+    panel.grid.minor = element_blank()
+  )
+p
+
+# # Save the plot to a specific path
+# ggsave(
+#   filename = file.path(CODE_DIR, "fig", "tsne_location_embeddings_nature.png"),
+#   plot = p,
+#   width = 9,
+#   height = 7,
+#   dpi = 600  # High resolution for publication
+# )
+
+```
+
+
+https://r-graph-gallery.com/color-palette-finder
+ArmyRose
+
+# All
+```{r}
+# Define color scale limits
+min_lat <- 48.6
+max_lat <- 49.0
+min_lon <- 2.0
+max_lon <- 2.7
+
+# List all CSV files in the directory
+csv_files <- list.files(path = file.path(DATA_DIR, "4plot"), pattern = "*.csv", full.names = TRUE)
+# csv_files
+
+# Define a function to create and save plots
+plot_lat_lon <- function(df, base_name, method, variable, var_name, limits, suffix) {
+  p <- ggplot(df, aes(x = x, y = y, color = !!sym(variable))) +
+    geom_point(size = 0.7, alpha = 0.8) +
+    scale_color_gradientn(
+      colors = c('#798234FF', '#A3AD62FF', '#D0D3A2FF', '#FDFBE4FF', '#F0C6C3FF', '#DF91A3FF', '#D46780FF'),
+      name = var_name,
+      limits = limits,
+      oob = scales::squish
+    ) +
+    labs(title = paste(method, "colored by", var_name)) +
+    theme_minimal(base_size = 14) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      legend.position = "right",
+      panel.grid.major = element_line(size = 0.2),
+      panel.grid.minor = element_blank()
+    )
+
+  # Save the plot
+  Fig_path <- file.path(CODE_DIR, "fig/word_by_latlon/")
+  ggsave(
+    filename = file.path(Fig_path, paste0(base_name, "_", suffix, ".png")),
+    plot = p,
+    width = 9,
+    height = 7,
+    dpi = 600
+  )
+}
+
+# Loop through each file
+for (file_path in csv_files) {
+  base_name <- str_remove(basename(file_path), "\\.csv")
+  print(base_name)
+
+  method <- str_extract(base_name, "[^_]+$") |> toupper()
+  df <- read.csv(file_path)
+
+  # Plot and save latitude
+  plot_lat_lon(df, base_name, method, "center_lat", "Latitude", c(min_lat, max_lat), "lat")
+
+  # Plot and save longitude
+  plot_lat_lon(df, base_name, method, "center_lon", "Longitude", c(min_lon, max_lon), "lon")
+}
+```
+
+```{r}
+# Define color scale limits
+min_lat <- 48.6
+max_lat <- 49.0
+min_lon <- 2.0
+max_lon <- 2.7
+
+# Custom color mappings
+time_colors <- c(
+  "night" = "#798234",   # olive green
+  "daytime" = "#D46780", # rose pink
+  "evening" = "#F0C6C3FF"    # soft lime
+)
+
+day_type_colors <- c(
+  "weekday" = "#DF91A3",   # muted pink
+  "weekend" = "#798234"    # olive green
+)
+
+# List all CSV files in the directory
+csv_files <- list.files(path = file.path(DATA_DIR, "4plot"), pattern = "*.csv", full.names = TRUE)
+
+# Create output directories if they don't exist
+dir.create(file.path(CODE_DIR, "fig/word_by_latlon"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(CODE_DIR, "fig/word_by_time"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(CODE_DIR, "fig/word_by_day"), recursive = TRUE, showWarnings = FALSE)
+
+# Function to plot latitude and longitude
+plot_lat_lon <- function(df, base_name, method, variable, var_name, limits, suffix) {
+  p <- ggplot(df, aes(x = x, y = y, color = !!sym(variable))) +
+    geom_point(size = 0.7, alpha = 0.8) +
+    scale_color_gradientn(
+      colors = c('#798234FF', '#A3AD62FF', '#D0D3A2FF', '#FDFBE4FF', '#F0C6C3FF', '#DF91A3FF', '#D46780FF'),
+      name = var_name,
+      limits = limits,
+      oob = scales::squish
+    ) +
+    labs(title = paste(method, "colored by", var_name)) +
+    theme_minimal(base_size = 14) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      legend.position = "right",
+      panel.grid.major = element_line(size = 0.2),
+      panel.grid.minor = element_blank()
+    )
+
+  Fig_path <- file.path(CODE_DIR, "fig/word_by_latlon/")
+  ggsave(
+    filename = file.path(Fig_path, paste0(base_name, "_", suffix, ".png")),
+    plot = p,
+    width = 9,
+    height = 7,
+    dpi = 600
+  )
+}
+
+# Function to plot categorical variables with custom colors
+plot_extra_var <- function(df, base_name, method, variable, var_name, folder_name) {
+  # Select appropriate color mapping
+  if (variable == "time") {
+    custom_colors <- time_colors
+  } else if (variable == "day_type") {
+    custom_colors <- day_type_colors
+  } else {
+    stop("Unknown variable for custom color mapping.")
+  }
+
+  p <- ggplot(df, aes(x = x, y = y, color = !!sym(variable))) +
+    geom_point(size = 0.7, alpha = 0.8) +
+    scale_color_manual(values = custom_colors, name = var_name) +
+    labs(title = paste(method, "colored by", var_name)) +
+    theme_minimal(base_size = 14) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      legend.position = "right",
+      panel.grid.major = element_line(size = 0.2),
+      panel.grid.minor = element_blank()
+    )
+
+  Fig_path <- file.path(CODE_DIR, "fig", folder_name)
+  ggsave(
+    filename = file.path(Fig_path, paste0(base_name, "_", variable, ".png")),
+    plot = p,
+    width = 9,
+    height = 7,
+    dpi = 600
+  )
+}
+
+# Loop through each file
+for (file_path in csv_files) {
+  base_name <- str_remove(basename(file_path), "\\.csv")
+  print(base_name)
+
+  method <- str_extract(base_name, "[^_]+$") |> toupper()
+  df <- read.csv(file_path)
+
+  # Plot and save latitude
+  plot_lat_lon(df, base_name, method, "center_lat", "Latitude", c(min_lat, max_lat), "lat")
+
+  # Plot and save longitude
+  plot_lat_lon(df, base_name, method, "center_lon", "Longitude", c(min_lon, max_lon), "lon")
+
+  # Plot and save time if available
+  if ("time" %in% names(df)) {
+    plot_extra_var(df, base_name, method, "time", "Time", "word_by_time")
+  }
+
+  # Plot and save day_type if available
+  if ("day_type" %in% names(df)) {
+    plot_extra_var(df, base_name, method, "day_type", "Day Type", "word_by_day")
+  }
+}
+
+```
+
+```{r}
+```
+
+
