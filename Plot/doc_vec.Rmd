@@ -1,0 +1,278 @@
+```{r}
+# Load required libraries
+library(ggplot2)
+library(stringr)
+library(paletteer)
+library(dplyr)
+library(forcats)
+
+DATA_DIR <- "/Users/wenlanzhang/Downloads/PhD_UCL/Data/Netmob2025"
+CODE_DIR <- "/Users/wenlanzhang/PycharmProjects/Netmob25_embedding/"
+
+armyrose_gradient <- colorRampPalette(paletteer::paletteer_d("rcartocolor::ArmyRose"))(100)
+
+armyrose_colors <- c('#798234FF', '#A3AD62FF', '#D0D3A2FF',  '#FDFBE4FF', '#F0C6C3FF', '#DF91A3FF', '#D46780FF')
+```
+
+https://r-graph-gallery.com/color-palette-finder
+ArmyRose
+
+# Data cleaning
+```{r}
+method = 'umap'
+# method = 'tsne'
+# method = 'pacmap'
+
+# data_type = "place_time_"
+data_type = "place_"
+
+file_path <- file.path(file.path(DATA_DIR, "4plot", paste0("doc_IRIS_", data_type, method, ".csv")))
+df_plot_doc <- read.csv(file_path)
+df_plot_doc
+```
+
+```{r}
+df_plot_doc <- df_plot_doc %>%
+  mutate(
+    # --- DIPLOMA → short buckets ---
+    DIPLOMA = na_if(str_squish(DIPLOMA), ""),
+    DIPLOMA_SHORT = case_when(
+      str_detect(DIPLOMA, "^5-year-and-above")       ~ "Master+ / Doctorate",
+      str_detect(DIPLOMA, "^3–4-year higher")        ~ "Bachelor / Licence",
+      str_detect(DIPLOMA, "^Upper secondary")        ~ "Upper secondary",
+      str_detect(DIPLOMA, "^Lower secondary")        ~ "Lower secondary",
+      str_detect(DIPLOMA, "^Vocational certificate") ~ "Vocational certificate",
+      is.na(DIPLOMA)                                 ~ "Unknown / Not reported",
+      TRUE                                           ~ DIPLOMA
+    ),
+
+    # --- PRO_CAT (1–8) → short labels ---
+    PRO_CAT_SHORT = case_when(
+      as.integer(PRO_CAT) == 1 ~ "Crafts/Business owner",
+      as.integer(PRO_CAT) == 2 ~ "Executive/Prof.",
+      as.integer(PRO_CAT) == 3 ~ "Intermediate",
+      as.integer(PRO_CAT) == 4 ~ "Employee",
+      as.integer(PRO_CAT) == 5 ~ "Worker",
+      as.integer(PRO_CAT) == 6 ~ "Retired",
+      as.integer(PRO_CAT) == 7 ~ "Student",
+      as.integer(PRO_CAT) == 8 ~ "Unemployed/Inactive",
+      TRUE ~ "Unknown / Not reported"
+    ),
+
+    # --- NB_CAR → categorical 0/1/2/3+ ---
+    NB_CAR_CAT = case_when(
+      is.na(NB_CAR)           ~ "Unknown / Not reported",
+      NB_CAR == 0             ~ "0",
+      NB_CAR == 1             ~ "1",
+      NB_CAR == 2             ~ "2",
+      NB_CAR >= 3             ~ "3+",
+      TRUE                    ~ "Unknown / Not reported"
+    ),
+
+    # --- set preferred orderings (Unknown last) ---
+    DIPLOMA_SHORT = fct_relevel(
+      DIPLOMA_SHORT,
+      c("Master+ / Doctorate",
+        "Bachelor / Licence",
+        "Upper secondary",
+        "Lower secondary",
+        "Vocational certificate",
+        "Unknown / Not reported")
+    ),
+    PRO_CAT_SHORT = fct_relevel(
+      PRO_CAT_SHORT,
+      c("Executive/Prof.","Crafts/Business owner","Intermediate","Employee",
+        "Worker","Student","Unemployed/Inactive","Retired","Unknown / Not reported")
+    ),
+    NB_CAR_CAT = fct_relevel(
+      NB_CAR_CAT,
+      c("0","1","2","3+","Unknown / Not reported")
+    )
+  )
+
+# Quick checks (optional)
+df_plot_doc %>% count(NB_CAR_CAT, sort = TRUE)
+df_plot_doc %>% count(DIPLOMA_SHORT, sort = TRUE)
+df_plot_doc %>% count(PRO_CAT_SHORT, sort = TRUE)
+
+df_plot_doc
+```
+
+
+
+## CAT
+## Single
+```{r}
+p <- ggplot(df_plot_doc, aes(x = x, y = y, color = DIPLOMA_SHORT)) +
+  geom_point(size = 0.7, alpha = 0.8) +
+  scale_colour_paletteer_d(
+    "rcartocolor::ArmyRose",
+    name = "Diploma",
+    labels = function(x) str_wrap(x, width = 25)  # wrap after ~30 characters
+  ) +
+  labs(title = "Location Time Embeddings colored by Diploma") +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    panel.grid.major = element_line(size = 0.2),
+    panel.grid.minor = element_blank()
+  )
+
+p
+
+# Save the plot to a specific path
+ggsave(
+  filename = file.path(CODE_DIR, "fig", "doc/test_place_time_umap_DIPLOMA_IRIS_doc.png"),
+  plot = p,
+  width = 9,
+  height = 7,
+  dpi = 600  
+)
+
+```
+## All
+
+```{r}
+plot_embedding <- function(data, color_var, title, filename, custom_colors = NULL) {
+  # Detect categories in the data
+  categories <- levels(factor(data[[color_var]]))
+
+  # If no custom colors, use paletteer but force Unknown → light grey
+  if (is.null(custom_colors)) {
+    if ("Unknown / Not reported" %in% categories) {
+      # Build paletteer colors (enough for all categories except Unknown)
+      base_colors <- paletteer::paletteer_d("rcartocolor::ArmyRose", n = length(categories))
+      names(base_colors) <- categories
+
+      # Override Unknown
+      base_colors["Unknown / Not reported"] <- "#d9d9d9"
+
+      scale_col <- scale_color_manual(
+        values = base_colors,
+        name   = title,
+        labels = function(x) str_wrap(x, width = 25)
+      )
+    } else {
+      scale_col <- scale_colour_paletteer_d(
+        "rcartocolor::ArmyRose",
+        name   = title,
+        labels = function(x) str_wrap(x, width = 25)
+      )
+    }
+  } else {
+    # Use provided custom colors
+    scale_col <- scale_color_manual(
+      values = custom_colors,
+      name   = title,
+      labels = function(x) str_wrap(x, width = 25)
+    )
+  }
+
+  # Build the plot
+  p <- ggplot(data, aes(x = x, y = y, color = .data[[color_var]])) +
+    geom_point(size = 1.7, alpha = 0.8) +
+    scale_col +
+    labs(title = paste("Location Time Embeddings colored by", title)) +
+    theme_minimal(base_size = 16) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      panel.grid.major = element_line(size = 0.2),
+      panel.grid.minor = element_blank(),
+      legend.position = "bottom"
+    )
+
+  print(p)
+
+  ggsave(
+    filename = file.path(CODE_DIR, "fig", "doc", filename),
+    plot = p,
+    width = 9,
+    height = 9,
+    dpi = 600
+  )
+}
+
+```
+
+```{r}
+# Example custom colors for NB_CAR_CAT
+plot_embedding(
+  df_plot_doc,
+  "NB_CAR_CAT",
+  "Number of cars",
+  paste0(data_type, method, "_NB_CAR.png"),
+  custom_colors = c("0" = "#D46780FF", "1" = "#F0C6C3FF", "2" = "#D0D3A2FF", "3+" = "#798234FF")
+                    # , "Unknown / Not reported" = "#FDFBE4FF")
+)
+```
+
+```{r}
+plot_embedding(df_plot_doc, "DIPLOMA_SHORT", "Diploma", paste0(data_type, method, "_DIPLOMA.png"))
+plot_embedding(df_plot_doc, "PRO_CAT_SHORT", "Profession", paste0(data_type, method, "_PRO_CAT.png"))
+plot_embedding(df_plot_doc, "SEX", "Sex", paste0(data_type, method, "_Sex.png"), 
+               custom_colors = c("Man" = "#DF91A3FF", "Woman" = "#A3AD62FF"))
+plot_embedding(df_plot_doc, "Age_Group", "Age Group", paste0(data_type, method, "_Age_Gp.png"))
+```
+
+
+
+## Continuous
+```{r}
+# Define your color scale limits
+min_z <- 15
+max_z <- 70
+
+# Create the plot
+p <- ggplot(df_plot_doc, aes(x = x, y = y, color = AGE)) +
+  geom_point(size = 0.7, alpha = 0.8) +
+  scale_color_gradientn(
+    colors = armyrose_gradient,
+    name = "AGE",
+    limits = c(min_z, max_z),
+    oob = scales::squish
+  ) +
+  labs(title = "t-SNE of Location Embeddings colored by AGE") +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "right",
+    panel.grid.major = element_line(size = 0.2),
+    panel.grid.minor = element_blank()
+  )
+
+p
+
+# # Save the plot to a specific path
+# ggsave(
+#   filename = file.path(CODE_DIR, "fig", "tsne_location_embeddings_nature.png"),
+#   plot = p,
+#   width = 9,
+#   height = 7,
+#   dpi = 600  
+# )
+
+```
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+

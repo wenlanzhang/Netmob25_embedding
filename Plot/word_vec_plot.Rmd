@@ -1,31 +1,28 @@
 ```{r}
-# Load the packages
-library(sf)
-library(here)
-library(dplyr)
-library(scales)
-library(viridis)
-library(ggplot2)
-library(ggExtra)
-library(cowplot)
-library(ggpubr)
-library(paletteer)
-library(stringr)
-
-```
-
-
-```{r}
 # Load required libraries
+library(sf)
+library(scales)
+library(dplyr)
 library(ggplot2)
 library(stringr)
 library(paletteer)
 
 DATA_DIR <- "/Users/wenlanzhang/Downloads/PhD_UCL/Data/Netmob2025"
 CODE_DIR <- "/Users/wenlanzhang/PycharmProjects/Netmob25_embedding/"
+
+armyrose_colors <- c(
+  '#798234FF', '#A3AD62FF', '#D0D3A2FF',
+  '#FDFBE4FF', '#F0C6C3FF', '#DF91A3FF', '#D46780FF'
+)
+
 ```
 
-# Single
+https://r-graph-gallery.com/color-palette-finder
+ArmyRose
+
+# Embedding plot
+
+## Single
 ```{r}
 file_path <- file.path(DATA_DIR, "/4plot/IRIS_place_time_day_tsne.csv")
 df_plot_word <- read.csv(file_path)
@@ -65,11 +62,8 @@ p
 
 ```
 
-
-https://r-graph-gallery.com/color-palette-finder
-ArmyRose
-
-# All
+## All
+only lat/lon
 ```{r}
 # Define color scale limits
 min_lat <- 48.6
@@ -127,6 +121,7 @@ for (file_path in csv_files) {
 }
 ```
 
+by lat/lon/time/day
 ```{r}
 # Define color scale limits
 min_lat <- 48.6
@@ -243,7 +238,268 @@ for (file_path in csv_files) {
 
 ```
 
+# Map
+## Single
+```{r}
+place_sim_df <- read.csv(file.path(DATA_DIR, "/4plot/word_place_similarity.csv"))
+place_sim_sf <- st_as_sf(place_sim_df, wkt = "geometry", crs = 4326)
+place_sim_sf
+```
+
+```{r}
+communes_sf <- st_read("/Users/wenlanzhang/Downloads/PhD_UCL/Data/Netmob2025/geo/communes_france.geojson")
+communes_sf
+```
+
+### France
+```{r}
+# Set your desired color scale limits
+sim_limits <- c(0.5, 0.8)  # adjust as needed
+
+# Plot without x/y limits
+p <- ggplot(place_sim_sf) +
+    geom_sf(aes(fill = sim_day_evening), color = "white", size = 0.01) +
+    scale_fill_gradientn(
+      colors = armyrose_colors,
+      name = "Similarity",
+      limits = sim_limits,
+      oob = squish
+    ) +
+    # theme_void() +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      legend.key.height = unit(1.2, "cm"),
+      plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(size = 12, hjust = 0.5)
+    ) +
+    labs(
+      title = "Place-Level Temporal Similarity",
+      subtitle = "Research Area: Day vs Night"
+      # title = "Spatial Distribution of Day-Evening Similarity",
+      # subtitle = "Colored by sim_day_evening values",
+      # caption = "Source: place_sim_df"
+    )
+
+# Save the plot
+ggsave(
+  filename = file.path(CODE_DIR, "fig", "cosine_similarity/evening_all.png"),
+  plot = p,
+  width = 7,   # slightly wider
+  height = 6.5,  # slightly taller
+  dpi = 600
+)
+p
+```
+
+### Paris
+```{r}
+# Set x and y limits (longitude and latitude) for Paris
+xlim_vals <- c(2.25, 2.45)  
+ylim_vals <- c(48.78, 48.93)
+
+# Plot
+p <- ggplot(place_sim_sf) +
+  # geom_sf(aes(fill = sim_day_evening), color = "white", size = 0.05) +
+  
+  # Main place similarity polygons
+  geom_sf(data = place_sim_sf, aes(fill = sim_day_evening), color = "white", size = 0.05) +
+  # Overlay boundary
+  geom_sf(data = communes_sf, fill = NA, color = "black", stroke = 5) +
+  
+    scale_fill_gradientn(
+    colors = armyrose_colors,
+    name = "Similarity",
+    limits = sim_limits,
+    oob = squish
+  ) +
+  coord_sf(xlim = xlim_vals, ylim = ylim_vals, expand = FALSE) +
+  # theme_void() +
+  theme_minimal() +
+  theme(
+      # legend.position = "right",
+    legend.position = c(1.15, 0.2),  # inside bottom-right corner
+    legend.justification = c(1, 0),  # anchor bottom-right
+    legend.key.height = unit(1.5, "cm"),
+    legend.key.width = unit(0.4, "cm"),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5)
+  ) +
+  labs(
+    title = "Place-Level Temporal Similarity",
+    subtitle = "Paris: Day vs Night"
+    # subtitle = "Higher similarity = similar activity patterns between day and night; 
+    # lower similarity = distinct temporal behavior",
+    # caption = "Source: place_sim_df"
+  )
+
+# Save the plot
+ggsave(
+  filename = file.path(CODE_DIR, "fig", "cosine_similarity/evening_Paris.png"),
+  plot = p,
+  width = 7,   # slightly wider
+  height = 6.5,  # slightly taller
+  dpi = 600
+)
+p
+```
+
+
+```{r}
+# Load data
+place_sim_df <- read.csv(file.path(DATA_DIR, "/4plot/word_place_similarity.csv"))
+place_sim_sf <- st_as_sf(place_sim_df, wkt = "geometry", crs = 4326)
+
+# Count NAs per column
+na_counts <- colSums(is.na(place_sim_sf))
+na_counts[na_counts > 0]
+data.frame(
+  column = names(na_counts),
+  num_NA = na_counts
+)
+
+```
+
+```{r}
+
+# Columns to visualize
+columns_to_plot <- c(
+  "sim_day_evening",
+  "sim_day_night",
+  "sim_evening_night",
+  "overall_sim",
+  "temporal_distinctiveness"
+)
+
+# Titles & subtitles for each column
+plot_titles <- c(
+  sim_day_evening = "Place-Level Temporal Similarity",
+  sim_day_night = "Place-Level Temporal Similarity",
+  sim_evening_night = "Place-Level Temporal Similarity",
+  overall_sim = "Overall Place Similarity",
+  temporal_distinctiveness = "Temporal Distinctiveness"
+)
+
+plot_subtitles <- c(
+  sim_day_evening = "Day vs Evening",
+  sim_day_night = "Day vs Night",
+  sim_evening_night = "Evening vs Night",
+  overall_sim = "Overall Activity Similarity",
+  temporal_distinctiveness = "How Different Temporal Patterns Are"
+)
+
+# File name suffixes
+file_suffixes <- c(
+  sim_day_evening = "day_evening",
+  sim_day_night = "day_night",
+  sim_evening_night = "evening_night",
+  overall_sim = "overall",
+  temporal_distinctiveness = "temporal"
+)
+
+# Color scale limits — adjust as needed per column if desired
+sim_limits <- c(0.3, 0.8)  
+
+# Paris map limits
+xlim_vals <- c(2.25, 2.45)
+ylim_vals <- c(48.78, 48.93)
+
+# Loop over each column
+for (col in columns_to_plot) {
+
+  # Dynamically set plot aesthetics
+  aes_fill <- aes_string(fill = col)
+
+  # ============ GLOBAL MAP ============
+  p_global <- ggplot(place_sim_sf) +
+    geom_sf(aes_fill, color = "white", size = 0.01) +
+    scale_fill_gradientn(
+      colors = armyrose_colors,
+      name = "Similarity",
+      limits = sim_limits,
+      oob = squish
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      legend.key.height = unit(1.2, "cm"),
+      plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(size = 12, hjust = 0.5)
+    ) +
+    labs(
+      title = plot_titles[col],
+      subtitle = plot_subtitles[col]
+    )
+
+  ggsave(
+    filename = file.path(CODE_DIR, "fig", "cosine_similarity", 
+                         paste0("All_", file_suffixes[col], ".png")),
+    plot = p_global,
+    width = 7,
+    height = 6.5,
+    dpi = 600
+  )
+
+  # ============ PARIS ZOOMED MAP ============
+  p_paris <- ggplot(place_sim_sf) +
+    geom_sf(aes_fill, color = "white", size = 0.05) +
+    scale_fill_gradientn(
+      colors = armyrose_colors,
+      name = "Similarity",
+      limits = sim_limits,
+      oob = squish
+    ) +
+    coord_sf(xlim = xlim_vals, ylim = ylim_vals, expand = FALSE) +
+    theme_minimal() +
+    theme(
+      legend.position = c(1.15, 0.2),
+      legend.justification = c(1, 0),
+      legend.key.height = unit(1.5, "cm"),
+      legend.key.width = unit(0.4, "cm"),
+      plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(size = 12, hjust = 0.5)
+    ) +
+    labs(
+      title = plot_titles[col],
+      subtitle = paste0("Paris: ", plot_subtitles[col])
+    )
+
+  ggsave(
+    filename = file.path(CODE_DIR, "fig", "cosine_similarity", 
+                         paste0("Paris_", file_suffixes[col], ".png")),
+    plot = p_paris,
+    width = 7,
+    height = 6.5,
+    dpi = 600
+  )
+}
+
+```
+
+
 ```{r}
 ```
 
+
+```{r}
+```
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
 
